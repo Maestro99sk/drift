@@ -1,6 +1,97 @@
 [
   {
     "source": "google_trends:united_states",
+    "keyword": "alphabet learning poster set",
+    "category": "kids",
+    "trend_velocity": 1.1,
+    "saturation": 0.25
+  },
+  {
+    "source": "google_trends:united_states",
+    "keyword": "wooden busy board for toddlers",
+    "category": "kids",
+    "trend_velocity": 1.3,
+    "saturation": 0.3
+  },
+  {
+    "source": "tiktok_creative_center",
+    "keyword": "magnetic tiles 100 piece set",
+    "category": "kids",
+    "trend_velocity": 1.0,
+    "saturation": 0.5
+  },
+  {
+    "source": "google_trends:united_kingdom",
+    "keyword": "silicone teething necklace for mom",
+    "category": "kids",
+    "trend_velocity": 0.7,
+    "saturation": 0.4
+  },
+  {
+    "source": "google_trends:canada",
+    "keyword": "kids drawing tablet lcd writing pad",
+    "category": "kids",
+    "trend_velocity": 1.2,
+    "saturation": 0.35
+  },
+  {
+    "source": "tiktok_creative_center",
+    "keyword": "montessori sensory bin toys",
+    "category": "kids",
+    "trend_velocity": 0.9,
+    "saturation": 0.4
+  },
+  {
+    "source": "google_trends:australia",
+    "keyword": "balance bike for 2 year old",
+    "category": "kids",
+    "trend_velocity": 0.8,
+    "saturation": 0.55
+  },
+  {
+    "source": "google_trends:united_states",
+    "keyword": "kids cooking set real utensils",
+    "category": "kids",
+    "trend_velocity": 0.6,
+    "saturation": 0.3
+  },
+  {
+    "source": "google_trends:united_states",
+    "keyword": "kids walkie talkies rechargeable",
+    "category": "kids",
+    "trend_velocity": 0.95,
+    "saturation": 0.45
+  },
+  {
+    "source": "tiktok_creative_center",
+    "keyword": "pop-it fidget board jumbo",
+    "category": "kids",
+    "trend_velocity": -0.3,
+    "saturation": 0.95
+  },
+  {
+    "source": "google_trends:united_kingdom",
+    "keyword": "Disney princess plush toy",
+    "category": "kids",
+    "trend_velocity": 1.4,
+    "saturation": 0.4
+  },
+  {
+    "source": "tiktok_creative_center",
+    "keyword": "Frozen Elsa dress costume",
+    "category": "kids",
+    "trend_velocity": 1.2,
+    "saturation": 0.6
+  },
+  {
+    "source": "google_trends:canada",
+    "keyword": "Paw Patrol birthday party set",
+    "category": "kids",
+    "trend_velocity": 0.9,
+    "saturation": 0.5
+  },
+  {
+    "source": "google_trends:united_states",
     "keyword": "silicone collapsible measuring cups",
     "category": "home",
     "trend_velocity": 1.3,
@@ -8,79 +99,16 @@
   },
   {
     "source": "google_trends:united_states",
-    "keyword": "magnetic eyelash kit",
-    "category": "beauty",
-    "trend_velocity": 0.9,
-    "saturation": 0.5
-  },
-  {
-    "source": "tiktok_creative_center",
-    "keyword": "pineapple-shaped ice mould",
-    "category": "home",
-    "trend_velocity": 0.7,
-    "saturation": 0.3
-  },
-  {
-    "source": "google_trends:united_kingdom",
     "keyword": "linen wrap midi dress",
     "category": "fashion",
     "trend_velocity": 0.5,
     "saturation": 0.65
   },
   {
-    "source": "google_trends:canada",
-    "keyword": "Disney princess plush toy",
-    "category": "kids",
-    "trend_velocity": 1.1,
-    "saturation": 0.4
-  },
-  {
-    "source": "tiktok_creative_center",
-    "keyword": "World Cup jersey",
-    "category": "fashion",
-    "trend_velocity": 1.7,
-    "saturation": 0.8
-  },
-  {
-    "source": "google_trends:australia",
+    "source": "google_trends:united_states",
     "keyword": "resistance band loop set",
     "category": "fitness",
     "trend_velocity": 0.4,
     "saturation": 0.45
-  },
-  {
-    "source": "google_trends:united_states",
-    "keyword": "kids alphabet learning poster",
-    "category": "kids",
-    "trend_velocity": 0.6,
-    "saturation": 0.25
-  },
-  {
-    "source": "google_trends:united_states",
-    "keyword": "wireless car charger mount",
-    "category": "gadgets",
-    "trend_velocity": -0.2,
-    "saturation": 0.95
-  },
-  {
-    "source": "tiktok_creative_center",
-    "keyword": "slow-feeder dog bowl",
-    "category": "pets",
-    "trend_velocity": 0.8,
-    "saturation": 0.35
-  },
-  {
-    "source": "google_trends:united_kingdom",
-    "keyword": "OEM 1:1 replica watch",
-    "category": "fashion",
-    "trend_velocity": 0.3,
-    "saturation": 0.6
-  },
-  {
-    "source": "google_trends:united_states",
-    "keyword": "ceramic ribbed mug set",
-    "category": "home",
-    "trend_velocity": 0.4,
-    "saturation": 0.3
   }
 ]

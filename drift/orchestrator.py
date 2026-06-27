@@ -36,9 +36,20 @@ async def discovery_tick() -> dict:
     sourcing = get_sourcing_adapter()
     dossier_adapter = get_dossier_adapter()
 
-    stats = {"signals": len(signals), "sourced": 0, "scored": 0, "surfaced": 0, "ip_rejected": 0}
+    stats = {
+        "signals": len(signals),
+        "sourced": 0,
+        "scored": 0,
+        "surfaced": 0,
+        "ip_rejected": 0,
+        "off_focus": 0,
+    }
 
     for sig in signals:
+        # Focus-mode filter: in single-niche stores, drop anything outside the focus.
+        if not settings.is_focused(sig.category):
+            stats["off_focus"] += 1
+            continue
         # Stage 1: deterministic IP keyword check (cheap, runs on every candidate).
         kw_result = ip_safe_keyword_check(sig.keyword)
         ip_safe = kw_result.safe

@@ -69,7 +69,16 @@ async def _gql(client: httpx.AsyncClient, query: str, variables: dict) -> dict:
 
 
 async def _dominant_niche(client: httpx.AsyncClient) -> str:
-    """Pick the niche that owns the most active products. Falls back to 'other'."""
+    """Pick the niche to skin the store for.
+
+    Focus mode wins: if FOCUS_CATEGORIES pins exactly one niche, use it.
+    Otherwise count active products and pick the dominant productType.
+    """
+    focus = get_settings().focus_list()
+    if len(focus) == 1:
+        log.info("Focus mode pins brand niche to %r", focus[0])
+        return focus[0]
+
     query = """
     {
         products(first: 100, query: "status:active") {
@@ -85,10 +94,10 @@ async def _dominant_niche(client: httpx.AsyncClient) -> str:
     counts: Counter[str] = Counter()
     for edge in data["products"]["edges"]:
         ptype = (edge["node"].get("productType") or "").strip().lower()
-        if ptype:
+        if ptype and (not focus or ptype in focus):
             counts[ptype] += 1
     if not counts:
-        return "other"
+        return focus[0] if focus else "other"
     return counts.most_common(1)[0][0]
 
 

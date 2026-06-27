@@ -71,6 +71,21 @@ class Settings(BaseSettings):
     # --- Loop ---
     loop_interval_seconds: int = Field(default=900, description="Orchestrator tick interval")
 
+    # --- Focus mode ---
+    # Comma-separated list of categories the loop is allowed to surface.
+    # Empty string = all categories (the original multi-niche behaviour).
+    # Single value (e.g. "kids") locks the store to one niche - cleaner branding,
+    # one ad account, one creative voice. The engine still supports the rest;
+    # they just sit dormant until you widen the list.
+    focus_categories: str = ""
+
+    def focus_list(self) -> list[str]:
+        return [c.strip().lower() for c in self.focus_categories.split(",") if c.strip()]
+
+    def is_focused(self, category: str) -> bool:
+        focus = self.focus_list()
+        return not focus or category.lower() in focus
+
     @field_validator(
         "scoring_w_trend", "scoring_w_margin", "scoring_w_supplier", "scoring_w_saturation"
     )
