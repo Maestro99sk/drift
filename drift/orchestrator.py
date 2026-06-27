@@ -146,7 +146,7 @@ async def monitoring_tick() -> dict:
     return {
         "snapshots": snaps,
         "decisions": len(decisions),
-        "sunsets": sum(1 for d in decisions if d.type.value == "sunset"),
+        "sunsets": sum(1 for d in decisions if d.get("type") == "sunset"),
     }
 
 

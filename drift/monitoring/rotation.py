@@ -84,11 +84,16 @@ def snapshot_metrics(now: datetime | None = None) -> int:
     return count
 
 
-async def evaluate_and_act() -> list[Decision]:
-    """Apply kill rule to every live product; pause ads + flag candidate on sunset."""
+async def evaluate_and_act() -> list[dict]:
+    """Apply kill rule to every live product; pause ads + flag candidate on sunset.
+
+    Returns plain dicts (not ORM objects) so callers can safely read the result
+    after the DB session has been committed and the SQLAlchemy instances
+    detached.
+    """
     from drift.models import Candidate
 
-    decisions: list[Decision] = []
+    decisions: list[dict] = []
     settings = get_settings()
     cutoff_days = max(settings.kill_roas_days, settings.kill_trend_days)
     cutoff = datetime.now(UTC) - timedelta(days=cutoff_days + 1)
@@ -136,7 +141,9 @@ async def evaluate_and_act() -> list[Decision]:
                     is_mock=p.is_mock,
                 )
                 sess.add(d)
-                decisions.append(d)
+                decisions.append(
+                    {"product_id": p.id, "type": "sunset", "reason": decision.reason}
+                )
             else:
                 d = Decision(
                     product_id=p.id,
@@ -145,7 +152,9 @@ async def evaluate_and_act() -> list[Decision]:
                     is_mock=p.is_mock,
                 )
                 sess.add(d)
-                decisions.append(d)
+                decisions.append(
+                    {"product_id": p.id, "type": "keep", "reason": decision.reason}
+                )
 
     # Run ad-platform pauses concurrently outside the DB session.
     for _cid, platform, external_id in pause_tasks:
