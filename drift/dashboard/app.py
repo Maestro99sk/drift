@@ -65,18 +65,29 @@ def _surfaced_table() -> None:
             st.info("No surfaced candidates yet. Run a discovery tick (button below).")
             return
         for dossier, product, candidate in rows:
+            raw = candidate.raw_signal or {}
             with st.expander(
-                f"#{dossier.id} * {candidate.raw_signal.get('keyword', '?')} * "
+                f"#{dossier.id} * {raw.get('keyword', '?')} * "
                 f"hotness {dossier.hotness:.2f} * {'MOCK' if dossier.is_mock else 'LIVE'}"
             ):
-                col_a, col_b = st.columns(2)
+                margin = product.est_sell_price - product.unit_cost
+                margin_pct = margin / product.est_sell_price * 100 if product.est_sell_price else 0
+                col_a, col_b = st.columns([1, 2])
                 with col_a:
+                    if raw.get("image_url"):
+                        st.image(raw["image_url"], use_container_width=True)
                     st.markdown(f"**Category:** {candidate.category}")
-                    st.markdown(f"**Supplier:** {product.supplier} * SKU `{product.supplier_sku}`")
+                    st.markdown(f"**Supplier:** {product.supplier} / `{product.supplier_sku}`")
+                    if raw.get("supplier_url"):
+                        st.markdown(f"[View on supplier site]({raw['supplier_url']})")
                     st.markdown(
-                        f"**Unit cost:** ${product.unit_cost:.2f} * "
-                        f"**Sell:** ${product.est_sell_price:.2f} * "
-                        f"**Ship days:** {product.ship_days}"
+                        f"**Cost:** ${product.unit_cost:.2f} -> "
+                        f"**Sell:** ${product.est_sell_price:.2f}"
+                    )
+                    st.markdown(
+                        f"**Margin:** ${margin:.2f} ({margin_pct:.0f}%) | "
+                        f"**Ship:** {product.ship_days}d | "
+                        f"**Stock:** {product.stock}"
                     )
                     st.markdown(f"**Reliability:** {product.reliability_score:.2f}")
                 with col_b:
@@ -115,6 +126,8 @@ def _surfaced_table() -> None:
 
 
 def _live_table() -> None:
+    from drift.models import LandingPage
+
     st.subheader("Live products")
     with session_scope() as sess:
         rows = sess.exec(
@@ -133,12 +146,33 @@ def _live_table() -> None:
                 .order_by(MetricSnapshot.ts.desc())
                 .limit(1)
             ).first()
+            landing = sess.exec(
+                select(LandingPage)
+                .where(LandingPage.product_id == product.id)
+                .order_by(LandingPage.created_at.desc())
+                .limit(1)
+            ).first()
             roas = latest.roas if latest else 0.0
-            st.markdown(
-                f"- #{product.id} **{candidate.raw_signal.get('keyword', '?')}** * "
+            raw = candidate.raw_signal or {}
+            label = (
+                f"#{product.id} **{raw.get('keyword', '?')}** * "
                 f"hotness {dossier.hotness:.2f} * ROAS {roas:.2f} * "
                 f"{'MOCK' if product.is_mock else 'LIVE'}"
             )
+            st.markdown(f"- {label}")
+            cols = st.columns([1, 4])
+            with cols[0]:
+                if raw.get("image_url"):
+                    st.image(raw["image_url"], width=120)
+            with cols[1]:
+                if landing and landing.storefront_url:
+                    st.markdown(f"[Open storefront page]({landing.storefront_url})")
+                if raw.get("supplier_url"):
+                    st.markdown(f"[View on supplier]({raw['supplier_url']})")
+                st.caption(
+                    f"supplier {product.supplier} / `{product.supplier_sku}` * "
+                    f"${product.unit_cost:.2f} -> ${product.est_sell_price:.2f}"
+                )
 
 
 def _recent_decisions() -> None:

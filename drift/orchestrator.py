@@ -46,8 +46,11 @@ async def discovery_tick() -> dict:
     }
 
     for sig in signals:
-        # Focus-mode filter: in single-niche stores, drop anything outside the focus.
+        # Focus-mode filters: category first, then keyword sub-filter for sub-niches.
         if not settings.is_focused(sig.category):
+            stats["off_focus"] += 1
+            continue
+        if not settings.matches_focus_keywords(sig.keyword):
             stats["off_focus"] += 1
             continue
         # Stage 1: deterministic IP keyword check (cheap, runs on every candidate).

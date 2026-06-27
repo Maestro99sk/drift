@@ -78,13 +78,28 @@ class Settings(BaseSettings):
     # one ad account, one creative voice. The engine still supports the rest;
     # they just sit dormant until you widen the list.
     focus_categories: str = ""
+    # Comma-separated must-contain keywords applied AFTER focus_categories.
+    # Lets you go sub-niche: focus_categories=kids + focus_keywords=board book,
+    # sensory book, cloth book -> only baby/toddler learning books surface.
+    # Empty = no keyword filter.
+    focus_keywords: str = ""
 
     def focus_list(self) -> list[str]:
         return [c.strip().lower() for c in self.focus_categories.split(",") if c.strip()]
 
+    def focus_keyword_list(self) -> list[str]:
+        return [k.strip().lower() for k in self.focus_keywords.split(",") if k.strip()]
+
     def is_focused(self, category: str) -> bool:
         focus = self.focus_list()
         return not focus or category.lower() in focus
+
+    def matches_focus_keywords(self, text: str) -> bool:
+        kws = self.focus_keyword_list()
+        if not kws:
+            return True
+        haystack = text.lower()
+        return any(kw in haystack for kw in kws)
 
     @field_validator(
         "scoring_w_trend", "scoring_w_margin", "scoring_w_supplier", "scoring_w_saturation"

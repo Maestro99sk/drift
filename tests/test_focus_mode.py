@@ -42,3 +42,37 @@ def test_empty_focus_allows_all():
     s = config.Settings(focus_categories="")
     assert s.focus_list() == []
     assert s.is_focused("anything") is True
+
+
+def test_focus_keywords_substring_match():
+    s = config.Settings(focus_keywords="board book, sensory, montessori")
+    assert s.matches_focus_keywords("Soft Cloth Board Book for Babies") is True
+    assert s.matches_focus_keywords("Sensory crinkle toy") is True
+    assert s.matches_focus_keywords("Wireless car charger") is False
+
+
+def test_empty_focus_keywords_allows_all():
+    s = config.Settings(focus_keywords="")
+    assert s.matches_focus_keywords("anything goes here") is True
+
+
+def test_focus_keyword_filter_drops_off_keyword_signals(monkeypatch):
+    """Category passes but keyword sub-filter rejects."""
+    monkeypatch.setenv("FOCUS_CATEGORIES", "kids")
+    monkeypatch.setenv("FOCUS_KEYWORDS", "board book,sensory")
+    config.get_settings.cache_clear()
+    try:
+        result = asyncio.run(run_once())
+        # All kids fixtures (busy boards, fidget toys, plush) lack 'board book'/'sensory',
+        # so off_focus should be high and very few should be surfaced.
+        assert result["discovery"]["off_focus"] >= 1
+        with session_scope() as sess:
+            for c in sess.query(Candidate).all():
+                keyword = (c.raw_signal or {}).get("keyword", "").lower()
+                assert (
+                    "board book" in keyword or "sensory" in keyword
+                ), f"keyword passed without matching focus: {keyword!r}"
+    finally:
+        monkeypatch.delenv("FOCUS_KEYWORDS", raising=False)
+        monkeypatch.delenv("FOCUS_CATEGORIES", raising=False)
+        config.get_settings.cache_clear()

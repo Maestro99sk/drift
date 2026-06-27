@@ -51,54 +51,76 @@ class CJHotProductsAdapter(SignalAdapter):
             log.info("CJ_API_KEY missing - CJHotProductsAdapter returning empty list")
             return []
 
-        # Bias the search toward the focus niche when one is set.
         s = get_settings()
         focus = s.focus_list()
-        # CJ search uses productNameEn; widening these aliases catches more inventory.
-        search_terms = {
-            "kids": "kids toys",
-            "fashion": "women dress",
-            "beauty": "skincare",
-            "home": "kitchen gadget",
-            "fitness": "fitness band",
-            "pets": "pet supplies",
-            "gadgets": "wireless gadget",
-        }
-        keyword = search_terms.get(focus[0], "") if len(focus) == 1 else ""
+        focus_kws = s.focus_keyword_list()
+
+        # Decide which search queries to fire. Each query is one CJ page.
+        # Priority: explicit FOCUS_KEYWORDS (one query each) > niche default > broad.
+        if focus_kws:
+            queries = focus_kws
+        elif len(focus) == 1:
+            queries = [
+                {
+                    "kids": "kids toys",
+                    "fashion": "women dress",
+                    "beauty": "skincare",
+                    "home": "kitchen gadget",
+                    "fitness": "fitness band",
+                    "pets": "pet supplies",
+                    "gadgets": "wireless gadget",
+                }.get(focus[0], "")
+            ]
+        else:
+            queries = [""]
+
+        seen_skus: set[str] = set()
+        signals: list[RawSignal] = []
 
         async with httpx.AsyncClient(timeout=20) as client:
             token = await self._get_token(client)
             if not token:
                 return []
 
-            params: dict[str, Any] = {
-                "pageNum": 1,
-                "pageSize": self.page_size,
-                # CJ's `sort` accepts e.g. "listedNum,desc" - more listings = more
-                # external interest. Without an explicit sales endpoint this is
-                # our best proxy for 'hot'.
-                "sort": "listedNum,desc",
-            }
-            if keyword:
-                params["productNameEn"] = keyword
+            for query in queries:
+                if len(signals) >= limit:
+                    break
+                params: dict[str, Any] = {
+                    "pageNum": 1,
+                    "pageSize": self.page_size,
+                    # CJ's `sort` accepts "listedNum,desc" - high listed count = many
+                    # other dropshippers are already selling it, our best proxy for hot.
+                    "sort": "listedNum,desc",
+                }
+                if query:
+                    params["productNameEn"] = query
 
-            try:
-                resp = await client.get(LIST_URL, headers={"CJ-Access-Token": token}, params=params)
-                resp.raise_for_status()
-            except httpx.HTTPError as exc:
-                log.warning("CJ hot products fetch failed: %s", exc)
-                return []
-            items = (resp.json().get("data") or {}).get("list") or []
+                try:
+                    resp = await client.get(
+                        LIST_URL, headers={"CJ-Access-Token": token}, params=params
+                    )
+                    resp.raise_for_status()
+                except httpx.HTTPError as exc:
+                    log.warning("CJ hot products fetch failed for %r: %s", query, exc)
+                    continue
+                items = (resp.json().get("data") or {}).get("list") or []
 
-        signals: list[RawSignal] = []
-        for item in items[:limit]:
-            sig = _item_to_signal(item)
-            if sig is None:
-                continue
-            # Respect focus mode even when the search query is broad.
-            if focus and not s.is_focused(sig.category):
-                continue
-            signals.append(sig)
+                for item in items:
+                    if len(signals) >= limit:
+                        break
+                    sig = _item_to_signal(item)
+                    if sig is None:
+                        continue
+                    sku = str(sig.raw.get("pid") or "")
+                    if sku in seen_skus:
+                        continue
+                    seen_skus.add(sku)
+                    if focus and not s.is_focused(sig.category):
+                        continue
+                    if not s.matches_focus_keywords(sig.keyword):
+                        continue
+                    signals.append(sig)
+
         return signals
 
     async def _get_token(self, client: httpx.AsyncClient) -> str | None:
@@ -142,6 +164,9 @@ def _item_to_signal(item: dict) -> RawSignal | None:
     # Suggested sell price: standard 3x dropshipping markup, rounded.
     suggested_sell_price = round(unit_cost * 3.0, 2)
 
+    image_url = item.get("productImage") or item.get("bigImage") or ""
+    cj_url = f"https://www.cjdropshipping.com/product/p-{sku}.html"
+
     return RawSignal(
         source="cj_hot",
         keyword=name,
@@ -150,6 +175,8 @@ def _item_to_signal(item: dict) -> RawSignal | None:
         saturation=saturation,
         raw={
             "pid": sku,
+            "image_url": image_url,
+            "supplier_url": cj_url,
             # The pre-sourced bundle: orchestrator can build a SourcingResult
             # without going back to CJ for a second search.
             "pre_sourced": {

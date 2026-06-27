@@ -69,6 +69,83 @@ def _cmd_shopify_install(_: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_picks(args: argparse.Namespace) -> int:
+    """List surfaced (and optionally live) picks with sourcing + storefront links."""
+    from drift.db import init_db, session_scope
+    from drift.models import (
+        Candidate,
+        Dossier,
+        DossierStatus,
+        LandingPage,
+        Product,
+    )
+
+    init_db()
+    status_filter = (
+        [DossierStatus.DRAFT, DossierStatus.APPROVED] if args.all else [DossierStatus.DRAFT]
+    )
+    with session_scope() as sess:
+        rows = (
+            sess.query(Dossier)
+            .filter(Dossier.status.in_(status_filter))
+            .order_by(Dossier.hotness.desc())
+            .all()
+        )
+        if not rows:
+            print("No picks. Run `drift loop --once` to seed.")
+            return 0
+
+        bar = "-" * 78
+        print(f"\n{len(rows)} pick(s):\n{bar}")
+        for d in rows:
+            product = sess.get(Product, d.product_id)
+            candidate = sess.get(Candidate, product.candidate_id) if product else None
+            landing = (
+                sess.query(LandingPage)
+                .filter(LandingPage.product_id == product.id)
+                .order_by(LandingPage.created_at.desc())
+                .first()
+                if product
+                else None
+            )
+            raw = (candidate.raw_signal or {}) if candidate else {}
+            kw = raw.get("keyword") or (product.supplier_sku if product else "?")
+            margin = (product.est_sell_price - product.unit_cost) if product else 0.0
+            margin_pct = (
+                (margin / product.est_sell_price * 100)
+                if product and product.est_sell_price
+                else 0.0
+            )
+
+            tag = "DRAFT" if d.status == DossierStatus.DRAFT else "LIVE "
+            mock = " [MOCK]" if d.is_mock else ""
+            print(f"\n[{tag}] #{d.id}  hotness {d.hotness:.2f}{mock}")
+            print(f"  product   : {kw}")
+            print(f"  category  : {candidate.category if candidate else '?'}")
+            if product:
+                print(
+                    f"  economics : ${product.unit_cost:.2f} -> ${product.est_sell_price:.2f}  "
+                    f"margin ${margin:.2f} ({margin_pct:.0f}%)  "
+                    f"ship {product.ship_days}d  "
+                    f"reliability {product.reliability_score:.2f}  "
+                    f"stock {product.stock}"
+                )
+                print(f"  supplier  : {product.supplier} / {product.supplier_sku}")
+            if raw.get("supplier_url"):
+                print(f"  sourceurl : {raw['supplier_url']}")
+            if raw.get("image_url"):
+                print(f"  image     : {raw['image_url']}")
+            if landing and landing.storefront_url:
+                print(f"  storefront: {landing.storefront_url}")
+            print(f"  ad angle  : {d.ad_angle.strip()[:140]}")
+        print(f"{bar}\n")
+        if not args.all:
+            print("Use `drift picks --all` to include live (approved) products.")
+            print("Use `drift approve <id>` to publish a draft.")
+        print()
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     _setup_logging()
     parser = argparse.ArgumentParser(prog="drift")
@@ -98,6 +175,17 @@ def main(argv: list[str] | None = None) -> int:
         help="One-shot OAuth: install the Shopify app and mint a permanent Admin API token",
     )
     p_sho.set_defaults(func=_cmd_shopify_install)
+
+    p_picks = sub.add_parser(
+        "picks",
+        help="List surfaced picks with sourcing links, images, margin and storefront URLs",
+    )
+    p_picks.add_argument(
+        "--all",
+        action="store_true",
+        help="Include approved (live) products too, not just drafts",
+    )
+    p_picks.set_defaults(func=_cmd_picks)
 
     args = parser.parse_args(argv)
     return args.func(args)
