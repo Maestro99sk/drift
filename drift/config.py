@@ -95,11 +95,22 @@ class Settings(BaseSettings):
         return not focus or category.lower() in focus
 
     def matches_focus_keywords(self, text: str) -> bool:
+        """Match if any focus keyword phrase has ALL its words present in text.
+
+        A 'phrase' is split on whitespace; each word must appear anywhere in
+        the haystack (any order, any distance). So FOCUS_KEYWORDS='board book'
+        catches 'Baby Soft Cloth Book with Board Pages' but not 'Plastic
+        board for kids' (which has no 'book').
+        """
         kws = self.focus_keyword_list()
         if not kws:
             return True
         haystack = text.lower()
-        return any(kw in haystack for kw in kws)
+        for kw in kws:
+            words = [w for w in kw.split() if w]
+            if words and all(w in haystack for w in words):
+                return True
+        return False
 
     @field_validator(
         "scoring_w_trend", "scoring_w_margin", "scoring_w_supplier", "scoring_w_saturation"

@@ -1,5 +1,153 @@
 [
   {
+    "source": "cj_hot",
+    "keyword": "Soft Cloth Baby Book Touch and Feel Animals",
+    "category": "kids",
+    "trend_velocity": 0.7,
+    "saturation": 0.35,
+    "pre_sourced": {
+      "supplier": "cj",
+      "supplier_sku": "CJ-CLOTH-BK-01",
+      "unit_cost": 3.20,
+      "ship_days": 9,
+      "reliability_score": 0.86,
+      "stock": 4200,
+      "suggested_sell_price": 12.99,
+      "saturation": 0.35
+    },
+    "image_url": "https://cf.shopee.com.my/file/sg-11134201-22120-cloth-book.jpg",
+    "supplier_url": "https://www.cjdropshipping.com/product/p-CJ-CLOTH-BK-01.html"
+  },
+  {
+    "source": "cj_hot",
+    "keyword": "Black and White High Contrast Baby Book Newborn",
+    "category": "kids",
+    "trend_velocity": 0.8,
+    "saturation": 0.25,
+    "pre_sourced": {
+      "supplier": "cj",
+      "supplier_sku": "CJ-HCBK-02",
+      "unit_cost": 4.10,
+      "ship_days": 10,
+      "reliability_score": 0.82,
+      "stock": 2800,
+      "suggested_sell_price": 14.99,
+      "saturation": 0.25
+    },
+    "image_url": "https://cf.shopee.com.my/file/contrast-book.jpg",
+    "supplier_url": "https://www.cjdropshipping.com/product/p-CJ-HCBK-02.html"
+  },
+  {
+    "source": "cj_hot",
+    "keyword": "Crinkle Sensory Soft Book for Babies 6 Months",
+    "category": "kids",
+    "trend_velocity": 0.9,
+    "saturation": 0.4,
+    "pre_sourced": {
+      "supplier": "cj",
+      "supplier_sku": "CJ-CRNK-03",
+      "unit_cost": 2.80,
+      "ship_days": 8,
+      "reliability_score": 0.88,
+      "stock": 5500,
+      "suggested_sell_price": 11.99,
+      "saturation": 0.4
+    },
+    "image_url": "https://cf.shopee.com.my/file/crinkle-book.jpg",
+    "supplier_url": "https://www.cjdropshipping.com/product/p-CJ-CRNK-03.html"
+  },
+  {
+    "source": "cj_hot",
+    "keyword": "Bath Book Waterproof EVA Educational Animals",
+    "category": "kids",
+    "trend_velocity": 0.6,
+    "saturation": 0.5,
+    "pre_sourced": {
+      "supplier": "cj",
+      "supplier_sku": "CJ-BATH-04",
+      "unit_cost": 2.40,
+      "ship_days": 9,
+      "reliability_score": 0.81,
+      "stock": 3100,
+      "suggested_sell_price": 9.99,
+      "saturation": 0.5
+    },
+    "image_url": "https://cf.shopee.com.my/file/bath-book.jpg",
+    "supplier_url": "https://www.cjdropshipping.com/product/p-CJ-BATH-04.html"
+  },
+  {
+    "source": "cj_hot",
+    "keyword": "Montessori First Words Wooden Flashcards Set",
+    "category": "kids",
+    "trend_velocity": 1.0,
+    "saturation": 0.3,
+    "pre_sourced": {
+      "supplier": "cj",
+      "supplier_sku": "CJ-FLASH-05",
+      "unit_cost": 6.50,
+      "ship_days": 11,
+      "reliability_score": 0.84,
+      "stock": 1900,
+      "suggested_sell_price": 22.99,
+      "saturation": 0.3
+    },
+    "image_url": "https://cf.shopee.com.my/file/flashcards.jpg",
+    "supplier_url": "https://www.cjdropshipping.com/product/p-CJ-FLASH-05.html"
+  },
+  {
+    "source": "cj_hot",
+    "keyword": "Touch and Feel Baby Board Book Farm Animals",
+    "category": "kids",
+    "trend_velocity": 0.75,
+    "saturation": 0.45,
+    "pre_sourced": {
+      "supplier": "cj",
+      "supplier_sku": "CJ-TFBK-06",
+      "unit_cost": 3.90,
+      "ship_days": 10,
+      "reliability_score": 0.85,
+      "stock": 3700,
+      "suggested_sell_price": 13.99,
+      "saturation": 0.45
+    },
+    "image_url": "https://cf.shopee.com.my/file/touch-feel.jpg",
+    "supplier_url": "https://www.cjdropshipping.com/product/p-CJ-TFBK-06.html"
+  },
+  {
+    "source": "cj_hot",
+    "keyword": "Disney Princess Plush Book Frozen Elsa Hardcover",
+    "category": "kids",
+    "trend_velocity": 1.4,
+    "saturation": 0.4,
+    "pre_sourced": {
+      "supplier": "cj",
+      "supplier_sku": "CJ-IP-001",
+      "unit_cost": 5.00,
+      "ship_days": 12,
+      "reliability_score": 0.75,
+      "stock": 800,
+      "suggested_sell_price": 18.99,
+      "saturation": 0.4
+    }
+  },
+  {
+    "source": "cj_hot",
+    "keyword": "Paw Patrol First Words Board Book Set",
+    "category": "kids",
+    "trend_velocity": 0.9,
+    "saturation": 0.5,
+    "pre_sourced": {
+      "supplier": "cj",
+      "supplier_sku": "CJ-IP-002",
+      "unit_cost": 4.20,
+      "ship_days": 11,
+      "reliability_score": 0.78,
+      "stock": 1200,
+      "suggested_sell_price": 15.99,
+      "saturation": 0.5
+    }
+  },
+  {
     "source": "google_trends:united_states",
     "keyword": "alphabet learning poster set",
     "category": "kids",
@@ -18,76 +166,6 @@
     "keyword": "magnetic tiles 100 piece set",
     "category": "kids",
     "trend_velocity": 1.0,
-    "saturation": 0.5
-  },
-  {
-    "source": "google_trends:united_kingdom",
-    "keyword": "silicone teething necklace for mom",
-    "category": "kids",
-    "trend_velocity": 0.7,
-    "saturation": 0.4
-  },
-  {
-    "source": "google_trends:canada",
-    "keyword": "kids drawing tablet lcd writing pad",
-    "category": "kids",
-    "trend_velocity": 1.2,
-    "saturation": 0.35
-  },
-  {
-    "source": "tiktok_creative_center",
-    "keyword": "montessori sensory bin toys",
-    "category": "kids",
-    "trend_velocity": 0.9,
-    "saturation": 0.4
-  },
-  {
-    "source": "google_trends:australia",
-    "keyword": "balance bike for 2 year old",
-    "category": "kids",
-    "trend_velocity": 0.8,
-    "saturation": 0.55
-  },
-  {
-    "source": "google_trends:united_states",
-    "keyword": "kids cooking set real utensils",
-    "category": "kids",
-    "trend_velocity": 0.6,
-    "saturation": 0.3
-  },
-  {
-    "source": "google_trends:united_states",
-    "keyword": "kids walkie talkies rechargeable",
-    "category": "kids",
-    "trend_velocity": 0.95,
-    "saturation": 0.45
-  },
-  {
-    "source": "tiktok_creative_center",
-    "keyword": "pop-it fidget board jumbo",
-    "category": "kids",
-    "trend_velocity": -0.3,
-    "saturation": 0.95
-  },
-  {
-    "source": "google_trends:united_kingdom",
-    "keyword": "Disney princess plush toy",
-    "category": "kids",
-    "trend_velocity": 1.4,
-    "saturation": 0.4
-  },
-  {
-    "source": "tiktok_creative_center",
-    "keyword": "Frozen Elsa dress costume",
-    "category": "kids",
-    "trend_velocity": 1.2,
-    "saturation": 0.6
-  },
-  {
-    "source": "google_trends:canada",
-    "keyword": "Paw Patrol birthday party set",
-    "category": "kids",
-    "trend_velocity": 0.9,
     "saturation": 0.5
   },
   {
