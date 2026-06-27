@@ -64,7 +64,24 @@ async def discovery_tick() -> dict:
 
         sourced = None
         if ip_safe:
-            sourced = await sourcing.find(sig.keyword, sig.category)
+            # Pre-sourced signals (e.g. from CJ bestsellers) ship the supplier
+            # data alongside the signal - no second lookup needed.
+            pre = sig.raw.get("pre_sourced") if isinstance(sig.raw, dict) else None
+            if isinstance(pre, dict):
+                from drift.sourcing.base import SourcingResult
+
+                sourced = SourcingResult(
+                    supplier=pre.get("supplier", "unknown"),
+                    supplier_sku=str(pre["supplier_sku"]),
+                    unit_cost=float(pre["unit_cost"]),
+                    ship_days=int(pre.get("ship_days", 12)),
+                    reliability_score=float(pre.get("reliability_score", 0.7)),
+                    stock=int(pre.get("stock", 0)),
+                    suggested_sell_price=float(pre["suggested_sell_price"]),
+                    saturation=float(pre.get("saturation", sig.saturation)),
+                )
+            else:
+                sourced = await sourcing.find(sig.keyword, sig.category)
             if sourced is None:
                 continue
             stats["sourced"] += 1
