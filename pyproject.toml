@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "drift"
+version = "0.1.0"
+description = "Adaptive dropshipping engine"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.4",
+    "sqlmodel>=0.0.22",
+    "httpx>=0.27",
+    "apscheduler>=3.10",
+    "anthropic>=0.39",
+    "pytrends>=4.9",
+    "streamlit>=1.37",
+    "python-dotenv>=1.0",
+    "tenacity>=8.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.6",
+    "black>=24.8",
+    "mypy>=1.11",
+    "types-requests",
+]
+
+[project.scripts]
+drift = "drift.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["drift*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+ignore = ["E501"]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+plugins = ["pydantic.mypy"]
+
+# SQLModel + pydantic interactions are noisy under strict. Tighten progressively.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
