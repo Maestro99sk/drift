@@ -141,9 +141,7 @@ async def evaluate_and_act() -> list[dict]:
                     is_mock=p.is_mock,
                 )
                 sess.add(d)
-                decisions.append(
-                    {"product_id": p.id, "type": "sunset", "reason": decision.reason}
-                )
+                decisions.append({"product_id": p.id, "type": "sunset", "reason": decision.reason})
             else:
                 d = Decision(
                     product_id=p.id,
@@ -152,9 +150,7 @@ async def evaluate_and_act() -> list[dict]:
                     is_mock=p.is_mock,
                 )
                 sess.add(d)
-                decisions.append(
-                    {"product_id": p.id, "type": "keep", "reason": decision.reason}
-                )
+                decisions.append({"product_id": p.id, "type": "keep", "reason": decision.reason})
 
     # Run ad-platform pauses concurrently outside the DB session.
     for _cid, platform, external_id in pause_tasks:

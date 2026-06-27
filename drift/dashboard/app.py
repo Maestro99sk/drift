@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import traceback
 from datetime import UTC, datetime, timedelta
 
 import streamlit as st
@@ -98,9 +99,14 @@ def _surfaced_table() -> None:
                         dossier.owner_edits = {**(dossier.owner_edits or {}), "copy_edited": True}
                         sess.add(dossier)
                     sess.commit()
-                    res = asyncio.run(approve_dossier(dossier.id))
-                    st.success(f"Published: {res['storefront_url']}")
-                    st.rerun()
+                    try:
+                        res = asyncio.run(approve_dossier(dossier.id))
+                    except Exception as exc:
+                        st.error(f"Publish failed: {type(exc).__name__}: {exc}")
+                        st.code(traceback.format_exc(), language="text")
+                    else:
+                        st.success(f"Published: {res['storefront_url']}")
+                        st.rerun()
                 reason = c2.text_input("Reject reason", key=f"r_{dossier.id}")
                 if c2.button("Reject", key=f"rej_{dossier.id}"):
                     reject_dossier(dossier.id, reason)
