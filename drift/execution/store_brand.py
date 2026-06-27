@@ -134,11 +134,9 @@ async def _patch_theme_colors(client: httpx.AsyncClient, theme_id: int, niche: s
     # try both flat (older) and color_schemes (Dawn 9+) shapes. Unknown keys
     # are left alone.
     current = settings.get("current")
-    if not isinstance(current, dict):
-        # "current" can also be a preset NAME (string) pointing into "presets".
-        # In that case patch the named preset instead.
-        if isinstance(current, str) and isinstance(settings.get("presets"), dict):
-            current = settings["presets"].get(current)
+    # "current" can be a dict directly, or a preset NAME pointing into "presets".
+    if isinstance(current, str) and isinstance(settings.get("presets"), dict):
+        current = settings["presets"].get(current)
     if not isinstance(current, dict):
         log.warning("Theme settings shape unrecognised; skipping color patch")
         return
