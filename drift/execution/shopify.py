@@ -199,6 +199,7 @@ class ShopifyStorefrontAdapter(StorefrontAdapter):
             # 4. Find-or-create a Collection per niche and add this product.
             # Gives the store visible structure ('/collections/kids', '/collections/home')
             # without touching the theme. Best-effort: failures don't break publish.
+            collection_gid: str | None = None
             try:
                 collection_gid = await self._ensure_collection(client, niche_theme)
                 if collection_gid:
@@ -210,6 +211,22 @@ class ShopifyStorefrontAdapter(StorefrontAdapter):
                     )
             except ShopifyError as exc:
                 log.warning("Collection sync skipped (%s)", exc)
+
+            # 5. Find-or-create a niche landing Page (`/pages/<niche>-trending`)
+            # with hero + product grid, refreshed each time a product joins the niche.
+            # Best-effort; requires write_content scope.
+            if collection_gid:
+                try:
+                    page_url = await self._ensure_niche_landing_page(
+                        client, niche_theme, collection_gid
+                    )
+                    if page_url:
+                        log.info("Niche landing page refreshed: %s", page_url)
+                except ShopifyError as exc:
+                    log.warning(
+                        "Niche page sync skipped (%s). Add write_content scope to enable.",
+                        exc,
+                    )
 
         public_url = product.get("onlineStoreUrl") or (
             f"https://{self.domain}/products/{handle}?utm={utm_key}"
@@ -277,6 +294,156 @@ class ShopifyStorefrontAdapter(StorefrontAdapter):
         res = data["collectionAddProductsV2"]
         if res["userErrors"]:
             log.warning("collectionAddProductsV2 userErrors: %s", res["userErrors"])
+
+    async def _ensure_niche_landing_page(
+        self,
+        client: httpx.AsyncClient,
+        niche_theme: str,
+        collection_gid: str,
+    ) -> str | None:
+        """Create or refresh `/pages/<niche>-trending` with hero + product grid.
+
+        Idempotent: each call regenerates the body from the current set of
+        products in the niche collection so the page stays fresh as the loop
+        adds winners and sunsets losers.
+        """
+        handle = f"{_slugify(niche_theme)}-trending"
+        title = f"Trending {niche_theme.replace('-', ' ').replace('_', ' ').title()}"
+
+        # Pull current products in the niche collection to render the grid.
+        prods_query = """
+        query driftCollectionProducts($id: ID!) {
+            collection(id: $id) {
+                products(first: 50) {
+                    edges {
+                        node {
+                            id
+                            handle
+                            title
+                            featuredMedia {
+                                preview { image { url } }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        """
+        data = await self._gql(client, prods_query, {"id": collection_gid})
+        edges = (((data.get("collection") or {}).get("products") or {}).get("edges")) or []
+        products = [e["node"] for e in edges]
+        body_html = _render_niche_landing_html(niche_theme, products)
+
+        # Find existing page by handle.
+        find_query = """
+        query driftFindPage($q: String!) {
+            pages(first: 1, query: $q) {
+                edges { node { id handle } }
+            }
+        }
+        """
+        data = await self._gql(client, find_query, {"q": f"handle:{handle}"})
+        page_edges = data["pages"]["edges"]
+
+        if page_edges:
+            page_id = page_edges[0]["node"]["id"]
+            update_query = """
+            mutation driftPageUpdate($id: ID!, $page: PageUpdateInput!) {
+                pageUpdate(id: $id, page: $page) {
+                    page { id handle }
+                    userErrors { field message }
+                }
+            }
+            """
+            data = await self._gql(
+                client,
+                update_query,
+                {
+                    "id": page_id,
+                    "page": {"title": title, "body": body_html},
+                },
+            )
+            pu = data["pageUpdate"]
+            if pu["userErrors"]:
+                log.warning("pageUpdate userErrors: %s", pu["userErrors"])
+                return None
+        else:
+            create_query = """
+            mutation driftPageCreate($page: PageCreateInput!) {
+                pageCreate(page: $page) {
+                    page { id handle }
+                    userErrors { field message }
+                }
+            }
+            """
+            data = await self._gql(
+                client,
+                create_query,
+                {
+                    "page": {
+                        "title": title,
+                        "handle": handle,
+                        "body": body_html,
+                        "isPublished": True,
+                    }
+                },
+            )
+            pc = data["pageCreate"]
+            if pc["userErrors"]:
+                log.warning("pageCreate userErrors: %s", pc["userErrors"])
+                return None
+
+        return f"https://{self.domain}/pages/{handle}"
+
+
+def _render_niche_landing_html(niche_theme: str, products: list[dict]) -> str:
+    """Render a tasteful hero + responsive product grid as a single HTML blob.
+
+    Inline styles (not stylesheet links) because Shopify Pages are inserted
+    inside theme templates and we cannot assume any global CSS is loaded.
+    """
+    title = niche_theme.replace("-", " ").replace("_", " ").title()
+
+    hero = (
+        '<div style="text-align:center;padding:48px 16px;'
+        "background:linear-gradient(135deg,#fafafa,#eef);"
+        'border-radius:16px;margin-bottom:32px;">'
+        f'<h1 style="font-size:2.4rem;margin:0 0 12px;">The {title} Edit</h1>'
+        f'<p style="font-size:1.1rem;color:#444;max-width:560px;margin:0 auto;">'
+        f"Hand-picked, currently trending {title.lower()} - refreshed as our "
+        "discovery loop spots new winners and retires the cooled ones."
+        "</p></div>"
+    )
+
+    if not products:
+        return hero + '<p style="text-align:center;color:#888;">No products yet.</p>'
+
+    cards: list[str] = []
+    for p in products:
+        media = (p.get("featuredMedia") or {}).get("preview") or {}
+        img_url = (media.get("image") or {}).get("url") or ""
+        img_tag = (
+            f'<img src="{img_url}" alt="{p["title"]}" '
+            'style="width:100%;height:220px;object-fit:cover;border-radius:8px;">'
+            if img_url
+            else '<div style="width:100%;height:220px;background:#eee;border-radius:8px;"></div>'
+        )
+        cards.append(
+            '<a href="/products/' + p["handle"] + '" '
+            'style="flex:1 1 240px;max-width:280px;text-decoration:none;color:inherit;'
+            "border:1px solid #eee;border-radius:12px;padding:16px;"
+            'transition:transform .12s ease,box-shadow .12s ease;display:block;">'
+            f"{img_tag}"
+            f'<h3 style="margin:14px 0 0;font-size:1.05rem;">{p["title"]}</h3>'
+            "</a>"
+        )
+
+    grid = (
+        '<div style="display:flex;flex-wrap:wrap;gap:20px;justify-content:center;">'
+        + "".join(cards)
+        + "</div>"
+    )
+    return hero + grid
 
 
 def _slugify(value: str) -> str:
