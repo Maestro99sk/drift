@@ -62,6 +62,13 @@ def _cmd_reject(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_shopify_install(_: argparse.Namespace) -> int:
+    from drift.install_shopify import run_install
+
+    run_install()
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     _setup_logging()
     parser = argparse.ArgumentParser(prog="drift")
@@ -85,6 +92,12 @@ def main(argv: list[str] | None = None) -> int:
     p_rej.add_argument("dossier_id", type=int)
     p_rej.add_argument("--reason", default="")
     p_rej.set_defaults(func=_cmd_reject)
+
+    p_sho = sub.add_parser(
+        "shopify-install",
+        help="One-shot OAuth: install the Shopify app and mint a permanent Admin API token",
+    )
+    p_sho.set_defaults(func=_cmd_shopify_install)
 
     args = parser.parse_args(argv)
     return args.func(args)

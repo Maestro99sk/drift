@@ -28,6 +28,16 @@ class Settings(BaseSettings):
     # --- Storefront ---
     shopify_admin_token: str = ""
     shopify_store_domain: str = ""
+    # Used only by `drift shopify-install` to fetch a permanent admin token via OAuth.
+    shopify_client_id: str = ""
+    shopify_client_secret: str = ""
+    shopify_scopes: str = "write_products,read_products"
+    shopify_install_callback_host: str = "0.0.0.0"
+    shopify_install_callback_port: int = 8765
+    # What Shopify sees as the redirect URL (must exactly match a URL allow-listed
+    # in the app's Redirect URLs config). Defaults to localhost; override if running
+    # on a remote server.
+    shopify_install_redirect_url: str = "http://localhost:8765/callback"
 
     # --- Ads ---
     meta_marketing_token: str = ""
