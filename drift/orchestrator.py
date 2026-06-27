@@ -250,11 +250,21 @@ async def approve_dossier(dossier_id: int) -> dict:
         cand.status = CandidateStatus.LIVE
         sess.add(cand)
 
-        return {
-            "dossier_id": dossier_id,
-            "storefront_url": publish_result.storefront_url,
-            "utm_key": utm_key,
-        }
+    # Re-skin the storefront based on the now-dominant niche. Runs outside the
+    # session scope so a brand-API hiccup never blocks an otherwise good publish.
+    if not settings.is_mock("storefront"):
+        try:
+            from drift.execution.store_brand import sync_store_brand
+
+            await sync_store_brand()
+        except Exception as exc:
+            log.warning("Store brand sync skipped: %s", exc)
+
+    return {
+        "dossier_id": dossier_id,
+        "storefront_url": publish_result.storefront_url,
+        "utm_key": utm_key,
+    }
 
 
 def reject_dossier(dossier_id: int, reason: str = "") -> None:
