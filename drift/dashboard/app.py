@@ -30,9 +30,8 @@ def _mock_banner() -> None:
     mocked = s.any_mocked()
     if mocked:
         st.warning(
-            f"-  **MOCK MODE - {', '.join(mocked)}.** "
-            "Mock records are tagged `is_mock=true` and excluded from real ROAS/scoring calibration.",
-            icon="- ",
+            f"**MOCK MODE - {', '.join(mocked)}.** "
+            "Mock records are tagged `is_mock=true` and excluded from real ROAS/scoring calibration."
         )
 
 
