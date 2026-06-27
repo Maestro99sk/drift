@@ -144,46 +144,56 @@ class ShopifyStorefrontAdapter(StorefrontAdapter):
                 raise ShopifyError(f"variant update failed: {vu['userErrors']}")
             log.info("Shopify variant set: price=%.2f sku=%s", price, sku)
 
-            # 3. Publish to the Online Store channel so the URL is reachable.
-            # First find the Online Store publication ID (one per store).
-            pubs_query = """
-            { publications(first: 25) { edges { node { id name } } } }
-            """
-            data = await self._gql(client, pubs_query, {})
-            online_store_id: str | None = None
-            for edge in data["publications"]["edges"]:
-                if edge["node"]["name"].lower().startswith("online store"):
-                    online_store_id = edge["node"]["id"]
-                    break
-
-            if online_store_id:
-                publish_query = """
-                mutation driftPublish($id: ID!, $input: [PublicationInput!]!) {
-                    publishablePublish(id: $id, input: $input) {
-                        publishable {
-                            availablePublicationsCount { count }
-                        }
-                        userErrors { field message }
-                    }
-                }
+            # 3. Best-effort publish to the Online Store channel so the URL is reachable.
+            # Requires read_publications + write_publications scopes; if the token
+            # lacks them, the product still exists in admin and the merchant can
+            # publish manually. We log and continue rather than failing the publish.
+            try:
+                pubs_query = """
+                { publications(first: 25) { edges { node { id name } } } }
                 """
-                publish_vars = {
-                    "id": product_gid,
-                    "input": [{"publicationId": online_store_id}],
-                }
-                data = await self._gql(client, publish_query, publish_vars)
-                pp = data["publishablePublish"]
-                if pp["userErrors"]:
-                    log.warning(
-                        "publishablePublish userErrors (product created but not on Online Store): %s",
-                        pp["userErrors"],
-                    )
+                data = await self._gql(client, pubs_query, {})
+                online_store_id: str | None = None
+                for edge in data["publications"]["edges"]:
+                    if edge["node"]["name"].lower().startswith("online store"):
+                        online_store_id = edge["node"]["id"]
+                        break
+
+                if online_store_id:
+                    publish_query = """
+                    mutation driftPublish($id: ID!, $input: [PublicationInput!]!) {
+                        publishablePublish(id: $id, input: $input) {
+                            publishable {
+                                availablePublicationsCount { count }
+                            }
+                            userErrors { field message }
+                        }
+                    }
+                    """
+                    publish_vars = {
+                        "id": product_gid,
+                        "input": [{"publicationId": online_store_id}],
+                    }
+                    data = await self._gql(client, publish_query, publish_vars)
+                    pp = data["publishablePublish"]
+                    if pp["userErrors"]:
+                        log.warning(
+                            "publishablePublish userErrors (product created, not on Online Store): %s",
+                            pp["userErrors"],
+                        )
+                    else:
+                        log.info("Published to Online Store channel: %s", online_store_id)
                 else:
-                    log.info("Published to Online Store channel: %s", online_store_id)
-            else:
+                    log.warning(
+                        "No Online Store publication found - product created but won't render at /products/%s",
+                        handle,
+                    )
+            except ShopifyError as exc:
                 log.warning(
-                    "No Online Store publication found - product created but won't render at /products/%s",
-                    handle,
+                    "Channel publish skipped (%s). Product %s exists in admin; "
+                    "add read_publications + write_publications scopes to enable auto-publish.",
+                    exc,
+                    product_gid,
                 )
 
         public_url = product.get("onlineStoreUrl") or (
