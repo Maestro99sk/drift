@@ -70,6 +70,22 @@ class Settings(BaseSettings):
             raise ValueError("scoring weights must be in [0, 1]")
         return v
 
+    @field_validator(
+        "mock_signals",
+        "mock_sourcing",
+        "mock_llm",
+        "mock_storefront",
+        "mock_ads",
+        "mock_fulfilment",
+        mode="before",
+    )
+    @classmethod
+    def _blank_mock_is_none(cls, v: object) -> object:
+        # `.env` lines like `MOCK_SIGNALS=` mean "inherit MOCK_MODE", not "fail to parse".
+        if isinstance(v, str) and v.strip() == "":
+            return None
+        return v
+
     # --- Per-layer mock resolution ---
     def is_mock(self, layer: str) -> bool:
         layer_attr = f"mock_{layer}"
