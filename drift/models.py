@@ -83,7 +83,7 @@ class LandingPage(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     product_id: int = Field(foreign_key="product.id")
     niche_theme: str
-    utm_key: str = Field(index=True, unique=True)
+    utm_key: str = Field(index=True)
     storefront_url: str | None = None
     is_mock: bool = False
     created_at: datetime = Field(default_factory=_utcnow)
