@@ -1,16 +1,23 @@
-"""Sync store-level brand identity (title, tagline, brand colors) to Shopify.
+"""Sync storefront brand identity to whatever niche currently dominates the catalog.
 
-Driven by what's actually live in the store: pick the niche with the most
-active products and skin the storefront for it. Re-runnable - call after
-every approval and the brand drifts with the loop.
+Shopify's Admin GraphQL has no `shopUpdate` / `brandUpdate` mutations (the store
+name + brand-asset settings live in the admin UI, not the API). What we CAN
+update programmatically is the active theme's `config/settings_data.json` -
+that's where color tokens, hero gradients, etc. live for Dawn-family themes.
 
-Best-effort: each Shopify mutation is wrapped so missing scopes log a
-warning rather than break the publish flow. The publish itself remains
-the source of truth for 'success'.
+So the flow is:
+  1. Look at every active product, pick the dominant `productType` (= niche).
+  2. Fetch the active (main) theme.
+  3. Fetch its config/settings_data.json (Theme Asset REST endpoint).
+  4. Patch color settings for that niche, JSON.dumps, PUT back.
+
+Best-effort: if write_themes / read_themes scopes are missing, or if the
+theme doesn't use Dawn-style color tokens, we log a warning and skip.
 """
 
 from __future__ import annotations
 
+import json
 import logging
 from collections import Counter
 
@@ -22,55 +29,37 @@ from drift.execution.shopify import API_VERSION, ShopifyError
 log = logging.getLogger(__name__)
 
 
-# Per-niche colour palettes. Hand-picked because brand visuals matter more than
-# anything an LLM would auto-pick; widening the palette is a one-line change.
+# Per-niche colour palettes (background, accent). Hand-picked - visual identity
+# matters more than anything an LLM would auto-generate. Extend freely.
 NICHE_PALETTE: dict[str, tuple[str, str]] = {
-    "kids": ("#F8C8DC", "#3C3C8A"),
-    "fashion": ("#1a1a1a", "#d4af37"),
+    "kids": ("#FFF8FA", "#3C3C8A"),
+    "fashion": ("#1A1A1A", "#D4AF37"),
     "beauty": ("#FBE7EA", "#9B2C5D"),
     "home": ("#EDE6DA", "#3C4A3E"),
     "fitness": ("#0F1417", "#FF6B35"),
     "pets": ("#FFF6E0", "#A55833"),
     "gadgets": ("#0B0F19", "#00D4FF"),
-    "general": ("#FAFAFA", "#1D1D1F"),
-}
-
-NICHE_TAGLINE: dict[str, str] = {
-    "kids": "Learning gear that holds up to actual kids.",
-    "fashion": "Wear-it-this-week pieces, not seasonal hype.",
-    "beauty": "Routines worth the counter space.",
-    "home": "Quiet upgrades for the rooms you live in.",
-    "fitness": "Built for the workouts you actually finish.",
-    "pets": "Stuff your pet will tolerate. Maybe even love.",
-    "gadgets": "Useful tech with a real job to do.",
-    "general": "Trending picks, curated weekly.",
+    "other": ("#FAFAFA", "#1D1D1F"),
 }
 
 
 def _palette(niche: str) -> tuple[str, str]:
-    return NICHE_PALETTE.get(niche, NICHE_PALETTE["general"])
+    return NICHE_PALETTE.get(niche.lower(), NICHE_PALETTE["other"])
 
 
-def _tagline(niche: str) -> str:
-    return NICHE_TAGLINE.get(niche, NICHE_TAGLINE["general"])
-
-
-def _store_title(niche: str) -> str:
-    pretty = niche.replace("-", " ").replace("_", " ").title()
-    if niche == "general":
-        return "Drift"
-    return f"Drift - {pretty}"
+def _headers() -> dict[str, str]:
+    s = get_settings()
+    return {
+        "X-Shopify-Access-Token": s.shopify_admin_token,
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
 
 
 async def _gql(client: httpx.AsyncClient, query: str, variables: dict) -> dict:
     s = get_settings()
     url = f"https://{s.shopify_store_domain}/admin/api/{API_VERSION}/graphql.json"
-    headers = {
-        "X-Shopify-Access-Token": s.shopify_admin_token,
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-    }
-    resp = await client.post(url, headers=headers, json={"query": query, "variables": variables})
+    resp = await client.post(url, headers=_headers(), json={"query": query, "variables": variables})
     if resp.status_code >= 400:
         raise ShopifyError(f"Shopify HTTP {resp.status_code}: {resp.text}")
     payload = resp.json()
@@ -80,7 +69,7 @@ async def _gql(client: httpx.AsyncClient, query: str, variables: dict) -> dict:
 
 
 async def _dominant_niche(client: httpx.AsyncClient) -> str:
-    """Pick the niche that owns the most active products. Falls back to 'general'."""
+    """Pick the niche that owns the most active products. Falls back to 'other'."""
     query = """
     {
         products(first: 100, query: "status:active") {
@@ -92,68 +81,127 @@ async def _dominant_niche(client: httpx.AsyncClient) -> str:
         data = await _gql(client, query, {})
     except ShopifyError as exc:
         log.warning("dominant_niche query failed: %s", exc)
-        return "general"
+        return "other"
     counts: Counter[str] = Counter()
     for edge in data["products"]["edges"]:
         ptype = (edge["node"].get("productType") or "").strip().lower()
         if ptype:
             counts[ptype] += 1
     if not counts:
-        return "general"
+        return "other"
     return counts.most_common(1)[0][0]
 
 
-async def _apply_shop_brand(client: httpx.AsyncClient, niche: str) -> None:
-    """Update shop name + brand colors to fit the dominant niche."""
+async def _active_theme_id(client: httpx.AsyncClient) -> int | None:
+    """Return the numeric theme id of the active (role=main) theme, or None."""
+    s = get_settings()
+    url = f"https://{s.shopify_store_domain}/admin/api/{API_VERSION}/themes.json"
+    resp = await client.get(url, headers=_headers())
+    if resp.status_code >= 400:
+        log.warning("themes list failed: %s", resp.text)
+        return None
+    for theme in resp.json().get("themes", []):
+        if theme.get("role") == "main":
+            return int(theme["id"])
+    return None
+
+
+async def _patch_theme_colors(client: httpx.AsyncClient, theme_id: int, niche: str) -> None:
+    """Fetch settings_data.json, patch Dawn-style color tokens, put it back."""
+    s = get_settings()
+    asset_url = (
+        f"https://{s.shopify_store_domain}/admin/api/{API_VERSION}/themes/{theme_id}/assets.json"
+    )
     primary, accent = _palette(niche)
-    title = _store_title(niche)
-    tagline = _tagline(niche)
 
-    # 1. Shop name / contact email / etc. via shopUpdate.
-    shop_query = """
-    mutation driftShopUpdate($input: ShopInput!) {
-        shopUpdate(input: $input) {
-            userErrors { field message }
-        }
-    }
-    """
+    # 1. GET current settings_data.json
+    resp = await client.get(
+        asset_url,
+        headers=_headers(),
+        params={"asset[key]": "config/settings_data.json"},
+    )
+    if resp.status_code != 200:
+        log.warning("Could not fetch settings_data.json (%s): %s", resp.status_code, resp.text)
+        return
+    raw_value = resp.json()["asset"]["value"]
     try:
-        data = await _gql(client, shop_query, {"input": {"name": title}})
-        ue = data["shopUpdate"]["userErrors"]
-        if ue:
-            log.warning("shopUpdate userErrors: %s", ue)
-        else:
-            log.info("Shop renamed to %r for niche %r", title, niche)
-    except ShopifyError as exc:
-        log.warning("shopUpdate skipped (%s)", exc)
+        settings = json.loads(raw_value)
+    except json.JSONDecodeError:
+        log.warning("settings_data.json is not valid JSON; skipping")
+        return
 
-    # 2. Brand colors via the Brand API. Requires write_brand scope.
-    brand_query = """
-    mutation driftBrandUpdate($input: BrandInput!) {
-        brandUpdate(input: $input) {
-            userErrors { field message }
-        }
+    # 2. Patch known color keys. Dawn's structure changes across versions, so we
+    # try both flat (older) and color_schemes (Dawn 9+) shapes. Unknown keys
+    # are left alone.
+    current = settings.get("current")
+    if not isinstance(current, dict):
+        # "current" can also be a preset NAME (string) pointing into "presets".
+        # In that case patch the named preset instead.
+        if isinstance(current, str) and isinstance(settings.get("presets"), dict):
+            current = settings["presets"].get(current)
+    if not isinstance(current, dict):
+        log.warning("Theme settings shape unrecognised; skipping color patch")
+        return
+
+    patched = 0
+
+    # Flat color tokens (older Dawn / many other themes).
+    flat_map = {
+        "colors_accent_1": accent,
+        "colors_accent_2": accent,
+        "colors_solid_button_labels": primary,
+        "colors_text": accent,
+        "colors_background_1": primary,
+        "colors_background_2": primary,
+        "color_button": accent,
+        "color_button_text": primary,
     }
-    """
-    brand_input = {
-        "input": {
-            "shortDescription": tagline,
-            "slogan": tagline,
-            "colors": {
-                "primary": [{"background": primary, "foreground": accent}],
-                "secondary": [{"background": accent, "foreground": primary}],
-            },
-        }
-    }
-    try:
-        data = await _gql(client, brand_query, brand_input)
-        ue = data["brandUpdate"]["userErrors"]
-        if ue:
-            log.warning("brandUpdate userErrors: %s", ue)
-        else:
-            log.info("Brand re-skinned for %r: primary=%s accent=%s", niche, primary, accent)
-    except ShopifyError as exc:
-        log.warning("brandUpdate skipped (%s). Add write_brand scope to enable.", exc)
+    for key, value in flat_map.items():
+        if key in current:
+            current[key] = value
+            patched += 1
+
+    # Dawn 9+ color_schemes structure.
+    schemes = current.get("color_schemes")
+    if isinstance(schemes, dict):
+        for scheme in schemes.values():
+            sset = scheme.get("settings") if isinstance(scheme, dict) else None
+            if not isinstance(sset, dict):
+                continue
+            for bg_key in ("background", "background_gradient"):
+                if bg_key in sset and isinstance(sset[bg_key], str):
+                    sset[bg_key] = primary
+                    patched += 1
+            for fg_key in ("text", "button", "secondary_button_label", "button_label"):
+                if fg_key in sset and isinstance(sset[fg_key], str):
+                    sset[fg_key] = accent if "button_label" not in fg_key else primary
+                    patched += 1
+
+    if patched == 0:
+        log.warning("No recognised color keys in theme settings; skipping put")
+        return
+
+    # 3. PUT updated settings_data.json
+    put = await client.put(
+        asset_url,
+        headers=_headers(),
+        json={
+            "asset": {
+                "key": "config/settings_data.json",
+                "value": json.dumps(settings, indent=2),
+            }
+        },
+    )
+    if put.status_code >= 400:
+        log.warning("Theme asset PUT failed (%s): %s", put.status_code, put.text)
+        return
+    log.info(
+        "Theme colors patched for niche %r: primary=%s accent=%s (%d keys updated)",
+        niche,
+        primary,
+        accent,
+        patched,
+    )
 
 
 async def sync_store_brand() -> None:
@@ -164,4 +212,14 @@ async def sync_store_brand() -> None:
     async with httpx.AsyncClient(timeout=30) as client:
         niche = await _dominant_niche(client)
         log.info("Re-skinning storefront for dominant niche: %s", niche)
-        await _apply_shop_brand(client, niche)
+        theme_id = await _active_theme_id(client)
+        if theme_id is None:
+            log.warning("No main theme found - add read_themes scope to enable brand re-skinning")
+            return
+        try:
+            await _patch_theme_colors(client, theme_id, niche)
+        except Exception as exc:
+            log.warning(
+                "Theme color patch skipped (%s). Needs read_themes + write_themes scopes.",
+                exc,
+            )
