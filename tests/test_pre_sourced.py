@@ -11,7 +11,6 @@ from drift.db import session_scope
 from drift.models import Product
 from drift.orchestrator import run_once
 from drift.signals.base import RawSignal, SignalAdapter
-from drift.signals import factory as signal_factory
 
 
 class _PreSourcedAdapter(SignalAdapter):
@@ -44,7 +43,10 @@ class _PreSourcedAdapter(SignalAdapter):
 
 @pytest.fixture
 def pre_sourced_signals(monkeypatch):
-    monkeypatch.setattr(signal_factory, "get_signal_adapter", lambda: _PreSourcedAdapter())
+    # The orchestrator binds get_signal_adapter at import time via
+    # `from drift.signals import get_signal_adapter`, so patch the binding
+    # that lives in orchestrator's namespace, not the factory module's.
+    monkeypatch.setattr("drift.orchestrator.get_signal_adapter", lambda: _PreSourcedAdapter())
     monkeypatch.setenv("FOCUS_CATEGORIES", "kids")
     config.get_settings.cache_clear()
     yield
