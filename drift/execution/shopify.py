@@ -196,10 +196,101 @@ class ShopifyStorefrontAdapter(StorefrontAdapter):
                     product_gid,
                 )
 
+            # 4. Find-or-create a Collection per niche and add this product.
+            # Gives the store visible structure ('/collections/kids', '/collections/home')
+            # without touching the theme. Best-effort: failures don't break publish.
+            try:
+                collection_gid = await self._ensure_collection(client, niche_theme)
+                if collection_gid:
+                    await self._add_product_to_collection(client, product_gid, collection_gid)
+                    log.info(
+                        "Added product %s to niche collection %s",
+                        product_gid,
+                        collection_gid,
+                    )
+            except ShopifyError as exc:
+                log.warning("Collection sync skipped (%s)", exc)
+
         public_url = product.get("onlineStoreUrl") or (
             f"https://{self.domain}/products/{handle}?utm={utm_key}"
         )
         return PublishResult(external_id=product_gid, storefront_url=public_url)
+
+    async def _ensure_collection(self, client: httpx.AsyncClient, niche_theme: str) -> str | None:
+        """Find a Collection by handle, else create it. Returns the Collection GID."""
+        handle = _slugify(niche_theme)
+        find_query = """
+        query findCollection($handle: String!) {
+            collectionByHandle(handle: $handle) { id }
+        }
+        """
+        data = await self._gql(client, find_query, {"handle": handle})
+        existing = data.get("collectionByHandle")
+        if existing:
+            return existing["id"]
+
+        title = niche_theme.replace("-", " ").replace("_", " ").title()
+        create_query = """
+        mutation createCollection($input: CollectionInput!) {
+            collectionCreate(input: $input) {
+                collection { id handle }
+                userErrors { field message }
+            }
+        }
+        """
+        data = await self._gql(
+            client,
+            create_query,
+            {
+                "input": {
+                    "title": title,
+                    "handle": handle,
+                    "descriptionHtml": (
+                        f"<p>Hand-picked trending {title.lower()} items, "
+                        "refreshed as the loop discovers new winners.</p>"
+                    ),
+                }
+            },
+        )
+        cc = data["collectionCreate"]
+        if cc["userErrors"]:
+            log.warning("collectionCreate userErrors: %s", cc["userErrors"])
+            return None
+        log.info("Created niche collection: %s (%s)", title, cc["collection"]["id"])
+        return cc["collection"]["id"]
+
+    async def _add_product_to_collection(
+        self, client: httpx.AsyncClient, product_gid: str, collection_gid: str
+    ) -> None:
+        add_query = """
+        mutation driftCollectionAdd($id: ID!, $productIds: [ID!]!) {
+            collectionAddProductsV2(id: $id, productIds: $productIds) {
+                userErrors { field message }
+            }
+        }
+        """
+        data = await self._gql(
+            client,
+            add_query,
+            {"id": collection_gid, "productIds": [product_gid]},
+        )
+        res = data["collectionAddProductsV2"]
+        if res["userErrors"]:
+            log.warning("collectionAddProductsV2 userErrors: %s", res["userErrors"])
+
+
+def _slugify(value: str) -> str:
+    """Turn 'Kids learning' into 'kids-learning' for use as a Shopify handle."""
+    out = []
+    for ch in value.lower().strip():
+        if ch.isalnum():
+            out.append(ch)
+        elif ch in " -_":
+            out.append("-")
+    slug = "".join(out)
+    while "--" in slug:
+        slug = slug.replace("--", "-")
+    return slug.strip("-") or "general"
 
 
 class MockStorefrontAdapter(StorefrontAdapter):
